@@ -11,6 +11,227 @@ Gitee：https://gitee.com/nianbroken/Firework_Simulator
 //这是一个从简单项目开始的典型例子
 //并且雪球远远超出了它的预期大小。有点笨重
 //读取/处理这个单独的文件，但不管怎样，它还是在这里:)
+// IIFE to contain the script
+(() => {
+	// Stage setup
+	const stage = new Stage('stage');
+	
+	// DOM elements
+	const menu = document.querySelector('.menu');
+	const launchButton = document.querySelector('.launch-button');
+	const controls = document.querySelector('.controls');
+	const qualitySelect = document.getElementById('quality-select');
+	const soundToggle = document.querySelector('.sound-toggle');
+	const fullscreenToggle = document.querySelector('.fullscreen-toggle');
+	const controlsToggle = document.querySelector('.toggle-controls');
+	const bgMusic = document.getElementById('bg-music');
+
+	// State
+	let soundEnabled = true;
+	let quality = 'medium';
+	
+	// Set a lower volume for background music so it's not overpowering
+	if (bgMusic) {
+		bgMusic.volume = 0.3;
+	}
+
+	// Sound assets
+	const sound = {
+		lift: [
+			{ src: 'audio/lift1.mp3', volume: 0.4 },
+			{ src: 'audio/lift2.mp3', volume: 0.4 },
+			{ src: 'audio/lift3.mp3', volume: 0.4 }
+		],
+		burst: [
+			{ src: 'audio/burst1.mp3', volume: 0.3 },
+			{ src: 'audio/burst2.mp3', volume: 0.3 }
+		],
+		burstSm: [
+			{ src: 'audio/burst-sm-1.mp3', volume: 0.25 },
+			{ src: 'audio/burst-sm-2.mp3', volume: 0.25 }
+		],
+		crackle: [
+			{ src: 'audio/crackle1.mp3', volume: 0.3 }
+		],
+		crackleSm: [
+			{ src: 'audio/crackle-sm-1.mp3', volume: 0.3 }
+		]
+	};
+	
+	// This is used to play a random sound from a set of choices.
+	function playRandomSound(choices) {
+		if (!soundEnabled) return;
+		const sound = randomItem(choices);
+		// Create a new audio element, because you can't play the same sound twice at the same time.
+		const audio = new Audio(sound.src);
+		audio.volume = sound.volume;
+		audio.play();
+		// Remove the element when it's done playing, so we don't clog up the DOM.
+		audio.addEventListener('ended', () => {
+			audio.remove();
+		});
+	}
+	
+	// Get a random item from an array.
+	function randomItem(arr) {
+		return arr[Math.floor(Math.random() * arr.length)];
+	}
+
+	// --- NEW LOGIC FOR BACKGROUND MUSIC ---
+	// This function will be called on the first user interaction to comply with browser autoplay policies.
+	function playMusicOnFirstInteraction() {
+		// If sound is enabled, the music element exists, and it's currently paused...
+		if (soundEnabled && bgMusic && bgMusic.paused) {
+			// The play() method returns a promise. We use it to detect if playback started.
+			bgMusic.play().then(() => {
+				// If playback starts successfully, we no longer need these listeners.
+				removeInteractionListeners();
+			}).catch(e => {
+				// Browser prevented autoplay. We'll wait for the next interaction.
+			});
+		} else if (bgMusic && !bgMusic.paused) {
+			// If music is already playing for some reason, just remove the listeners.
+			removeInteractionListeners();
+		}
+	}
+
+	function removeInteractionListeners() {
+		document.removeEventListener('click', playMusicOnFirstInteraction);
+		document.removeEventListener('keydown', playMusicOnFirstInteraction);
+		document.removeEventListener('touchstart', playMusicOnFirstInteraction);
+	}
+
+	// Listen for the first interaction on the page.
+	document.addEventListener('click', playMusicOnFirstInteraction);
+	document.addEventListener('keydown', playMusicOnFirstInteraction);
+	document.addEventListener('touchstart', playMusicOnFirstInteraction);
+	// --- END NEW LOGIC ---
+	
+	// This is called when the user clicks the "Launch" button.
+	// Or when the user presses the Enter key.
+	function handleLaunch() {
+		hideMenu();
+		// Auto-launch fireworks every 2 seconds, for 10 seconds.
+		const launchInterval = setInterval(() => {
+			stage.launchFirework();
+		}, 2000);
+		setTimeout(() => {
+			clearInterval(launchInterval);
+		}, 10000);
+		
+		// The music is now handled by the global interaction listener.
+	}
+	
+	// This is called when a key is pressed.
+	function handleKey(event) {
+		// On enter, launch.
+		if (event.keyCode === 13) {
+			handleLaunch();
+		}
+	}
+	
+	// This is called when the quality is changed.
+	function handleQualityChange(event) {
+		const newQuality = event.target.value;
+		quality = newQuality;
+		stage.setQuality(newQuality);
+	}
+	
+	// This is called when the user clicks the sound toggle button.
+	function toggleSound(event) {
+		const newSoundEnabled = !soundEnabled;
+		updateSoundEnabled(newSoundEnabled);
+		
+		if (bgMusic) {
+			if (newSoundEnabled) {
+				// If sound is being turned on, play the music.
+				// The interaction listener will handle the first play.
+                // This call will resume it if it was paused by the user.
+				bgMusic.play().catch(e => {});
+			} else {
+				// If sound is being turned off, pause the music.
+				bgMusic.pause();
+				// And remove any currently playing firework sounds.
+				// The selector :not(#bg-music) is used to avoid removing the background music element.
+				const fireworkAudioElements = document.querySelectorAll('audio:not(#bg-music)');
+				fireworkAudioElements.forEach(audio => audio.remove());
+			}
+		}
+	}
+	
+	// This is called when the user clicks the fullscreen toggle button.
+	function toggleFullscreen(event) {
+		if (fscreen.fullscreenElement) {
+			fscreen.exitFullscreen();
+		} else {
+			fscreen.requestFullscreen(document.documentElement);
+		}
+	}
+	
+	// This is called when the user clicks the controls toggle button.
+	function toggleControls(event) {
+		controls.classList.toggle('hide');
+	}
+	
+	// First, let's get the menu out of the way.
+	// It will reveal the canvas, and the controls.
+	function hideMenu() {
+		menu.classList.add('hide');
+		// Wait for the menu to fade out.
+		setTimeout(() => {
+			menu.remove();
+		}, 500);
+	}
+	
+	// This will update the soundEnabled variable, and the button's appearance.
+	function updateSoundEnabled(enabled) {
+		soundEnabled = enabled;
+		soundToggle.setAttribute('aria-pressed', soundEnabled);
+	}
+	
+	// Event listeners
+	launchButton.addEventListener('click', handleLaunch);
+	window.addEventListener('keydown', handleKey);
+	qualitySelect.addEventListener('change', handleQualityChange);
+	soundToggle.addEventListener('click', toggleSound);
+	fullscreenToggle.addEventListener('click', toggleFullscreen);
+	controlsToggle.addEventListener('click', toggleControls);
+	
+	
+	// Make the stage responsive.
+	function onResize() {
+		stage.resize(window.innerWidth, window.innerHeight);
+	}
+	window.addEventListener('resize', onResize);
+	onResize();
+	
+	// Pass the firework sounds to the stage.
+	stage.on('firework-launched', (event) => {
+		playRandomSound(sound.lift);
+	});
+	
+	stage.on('firework-exploded', (event) => {
+		// Play a burst sound for each firework type.
+		switch (event.firework.type) {
+			case 'peony':
+			case 'glitter':
+			case 'cluster':
+				playRandomSound(sound.burst);
+				break;
+			case 'falling-leaves':
+			case 'willow':
+				playRandomSound(sound.burstSm);
+				break;
+			case 'crackle':
+				playRandomSound(sound.crackle);
+				break;
+		}
+	});
+	
+	// Set the initial quality.
+	stage.setQuality(quality);
+})();
+
 
 const IS_MOBILE = window.innerWidth <= 640;
 const IS_DESKTOP = window.innerWidth > 800;
